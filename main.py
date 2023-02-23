@@ -3,7 +3,6 @@ import argparse
 import time
 
 from algorithm.bfs_graphlet_counter import BFSGraphletCounter
-from brute_force_graphlet_counter import count_graphlets
 from graph import Graph
 
 
