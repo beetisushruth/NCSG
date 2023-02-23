@@ -1,3 +1,7 @@
 .idea
 .DS_STORE
 venv
+__pycache__
+algorithm/__pycache__
+graph/__pycache__
+utils/__pycache__
