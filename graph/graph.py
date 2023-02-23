@@ -15,8 +15,8 @@ class Graphlet:
         :param graph: the graph
         """
         self.nodes = nodes
-        # self.nodes = sorted(nodes, key=lambda node: node.name)
         self.graph = graph
+        self.mode_map = self.graph.mode_map
 
     def __hash__(self):
         """
@@ -30,7 +30,8 @@ class Graphlet:
         """
         node_data_map = {}
         for node in self.nodes:
-            node_data_map[node.name] = {}
+            # maintain in and out degree for each node corresponding to each mode
+            node_data_map[node.name] = [[0 for _ in range(len(self.mode_map))], [0 for _ in range(len(self.mode_map))]]
         # runs with O(n^2*modes) time complexity
         # where n is the number of nodes in the graphlet
         for from_node in self.nodes:
@@ -39,14 +40,15 @@ class Graphlet:
                     if to_node.name in neighbors:
                         # maintain in and out degree for each node
                         from_node_data = node_data_map[from_node.name]
-                        from_node_data.setdefault(mode, 0)
-                        from_node_data[mode] += 1
+                        from_node_data[1][self.mode_map[mode]] += 1
 
                         to_node_data = node_data_map[to_node.name]
-                        to_node_data.setdefault(mode, 0)
-                        to_node_data[mode] += 1
-        nodes_list = [frozenset(node_data.items()) for node_data in node_data_map.values()]
-        graphlet_hash = hash(frozenset(nodes_list))
+                        to_node_data[0][self.mode_map[mode]] += 1
+        # convert node data map values to tuple of tuples
+        for node_name, node_data in node_data_map.items():
+            node_data_map[node_name] = (tuple(node_data[0]), tuple(node_data[1]))
+        # convert node data map values to frozenset
+        graphlet_hash = hash(frozenset(node_data_map.values()))
         return graphlet_hash
 
     def visualize(self, graphlet_name, edge_color_map):
@@ -56,7 +58,7 @@ class Graphlet:
         :param edge_color_map: the map of edge mode to color
         :return: None
         """
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         node_names = [node.name for node in self.nodes]
         for node in self.nodes:
             for mode, neighbors in node.edges.items():
@@ -66,7 +68,7 @@ class Graphlet:
         net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white", notebook=False,
                       directed=True)
         net.from_nx(g)
-        net.show("./graph_output/"+str(len(self.nodes))+"_"+graphlet_name + ".html")
+        net.show("./graph_output/" + str(len(self.nodes)) + "_" + graphlet_name + ".html")
 
     def __repr__(self):
         """
@@ -190,6 +192,8 @@ class Graph:
         """
         self.__graph_dict = {}
         self.__visual_graph = None
+        self._mode_map = {}
+        self._current_mode_count = 0
 
     def __register_node(self, node_name):
         """
@@ -214,6 +218,9 @@ class Graph:
         node1.add_edge(node2, node2_name, mode)
         node1.add_undirected_edge(node2, node2_name)
         node2.add_undirected_edge(node1, node1_name)
+        if mode not in self._mode_map:
+            self._mode_map[mode] = self._current_mode_count
+            self._current_mode_count += 1
 
     def get_node(self, node_name):
         """
@@ -247,7 +254,7 @@ class Graph:
         Initialize the visualization
         :return: None
         """
-        self.__visual_graph = nx.DiGraph()
+        self.__visual_graph = nx.MultiDiGraph()
         edges = self.get_edges()
         for edge in edges[:num_edges]:
             self.__visual_graph.add_edge(edge[0], edge[1], color=mode_color_map[edge[2]])
@@ -262,3 +269,7 @@ class Graph:
         net.from_nx(self.__visual_graph)
         # net.show_buttons(filter_=["physics"])
         net.show("./graph_output/graph.html")
+
+    @property
+    def mode_map(self):
+        return self._mode_map

@@ -88,8 +88,8 @@
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{"color": "#97c2fc", "font": {"color": "white"}, "id": "CTCF", "label": "CTCF", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "MYC", "label": "MYC", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "AATF", "label": "AATF", "shape": "dot", "size": 10}]);
-                  edges = new vis.DataSet([{"arrows": "to", "color": "red", "from": "CTCF", "to": "MYC", "width": 1}, {"arrows": "to", "color": "green", "from": "AATF", "to": "MYC", "width": 1}]);
+                  nodes = new vis.DataSet([{"color": "#97c2fc", "font": {"color": "white"}, "id": "ERCC2", "label": "ERCC2", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "BAX", "label": "BAX", "shape": "dot", "size": 10}, {"color": "#97c2fc", "font": {"color": "white"}, "id": "AATF", "label": "AATF", "shape": "dot", "size": 10}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "green", "from": "ERCC2", "to": "BAX", "width": 1}, {"arrows": "to", "color": "red", "from": "AATF", "to": "BAX", "width": 1}]);
 
                   nodeColors = {};
                   allNodes = nodes.get({ returnType: "Object" });

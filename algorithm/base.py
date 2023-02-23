@@ -14,7 +14,7 @@ class BaseAlgorithm(ABC):
         self._edge_color_map = edge_color_map
 
     @abstractmethod
-    def count_graphlets(self):
+    def count_graphlets(self, graphlet_size=3):
         """
         Count the graphlets in the graph
         :return:  the map of graphlet hash to graphlet

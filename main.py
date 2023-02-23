@@ -2,6 +2,7 @@ import csv
 import argparse
 import time
 
+from algorithm.dp_graphlet_counter import DPGraphletCounter
 from algorithm.bfs_graphlet_counter import BFSGraphletCounter
 from graph import Graph
 
@@ -44,15 +45,16 @@ def main():
     graph.init_visualization(mode_color_map=mode_color_map, num_edges=100)
     graph.visualize()
     # count the graphlets
-    algorithm = BFSGraphletCounter("BFS Graphlet Counter", graph, mode_color_map)
+    algorithm = DPGraphletCounter("DP Graphlet Counter", graph, mode_color_map)
+    # algorithm = BFSGraphletCounter("BFS Graphlet Counter", graph, mode_color_map)
     n = input("Enter the number of graphlets to count: ")
     while not n.isdigit():
         n = input("Enter the number of graphlets to count: ")
     n = int(n)
     start_time = time.time()
     graphlet_map = algorithm.count_graphlets(n)
-    algorithm.display_frequent_graphlet_stats()
     print("Time taken:", time.time() - start_time)
+    algorithm.display_frequent_graphlet_stats()
     print("Number of graphlets:", len(graphlet_map))
 
 
