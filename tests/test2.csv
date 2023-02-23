@@ -1,0 +1,6 @@
+"source","target","mode"
+"A","B","activation"
+"A","C","repression"
+"D","C","activation"
+"D","B","activation"
+"C","B","activation"

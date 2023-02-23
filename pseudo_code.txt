@@ -1,0 +1,50 @@
+function count_graphlets(graphlet_size=3)
+    # Initialize variables
+    node_list = list(graph.get_nodes())
+    processed_nodes = empty set
+    graphlet_count_map = empty map
+
+    # Iterate over all nodes in the graph
+    for node_name in node_list:
+        # Get the node object from the graph
+        node = graph.get_node(node_name)
+        # Perform a path search starting from the node, and create a map of the distances to each node in the graph
+        # that are at most the graphlet size away from the starting node
+        distance_to_path_map = perform_path_search(node, graphlet_size)
+        # Combine the paths in the distance-to-path map to create all possible graphlets of the given size
+        perform_path_combination(distance_to_path_map, graphlet_size)
+        # Add the current node to a set of processed nodes
+        processed_nodes.add(node_name)
+
+    # Return a map of the count of each type of graphlet found in the graph, indexed by a hash value that uniquely identifies each type of graphlet
+    return graphlet_count_map
+
+
+
+function perform_path_search(node, target_path_length)
+    path_queue = queue containing a list with a single element: [node]
+    distance_to_path_map = map of all paths ending at a distance, key is distance, value is list of paths at that distance
+    node_distance_map = dictionary with key: node name, value: distance, initialized with {node.name: 1}
+
+    while path_queue is not empty:
+        current_path = remove the first path in the queue
+        last_node = the last node in the current path
+        neighbors = get the undirected neighbors of the last node
+
+        for neighbor in neighbors:
+            if neighbor has not been processed and (neighbor is not in node_distance_map or node_distance_map[neighbor] > length of current_path):
+                new_path = current_path + [neighbor]
+                node_distance_map[neighbor] = length of new_path
+                if length of new_path is not equal to target_path_length:
+                    add new_path to the path_queue
+                if length of new_path is less than or equal to target_path_length:
+                    add new_path to the list of paths in the distance_to_path_map at the index of length of new_path
+
+    return distance_to_path_map
+
+
+function perform_path_combination(distance_to_path_map, graphlet_target_size)
+    for node_count, paths in distance_to_path_map:
+        for path in paths:
+            find all combinations of graphlets with this path = graphlet_target_size
+            store all the graphlets in a graphlet count map key = hash(graphlet) and value = list of graphlets with this hash
