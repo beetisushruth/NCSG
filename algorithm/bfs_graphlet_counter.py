@@ -7,8 +7,8 @@ from util.heap import MyHeap
 
 class BFSGraphletCounter(BaseAlgorithm):
 
-    def __init__(self, algo_name, graph, edge_color_map):
-        super().__init__(algo_name, graph, edge_color_map)
+    def __init__(self, graph, edge_color_map):
+        super().__init__(graph, edge_color_map)
         self._graphlet_count_map = {}
         self._processed_nodes = set()
 
