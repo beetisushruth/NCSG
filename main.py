@@ -1,13 +1,18 @@
 import csv
 import argparse
+import json
+import logging
+import os.path
 import time
+from pathlib import Path
 
 from tqdm import tqdm
 
-from algorithm.brute_force_graphlet_counter import BruteForceGraphletCounter
-from algorithm.dp_graphlet_counter import DPGraphletCounter
-from algorithm.bfs_graphlet_counter import BFSGraphletCounter
+from algorithm.base import BaseAlgorithm
 from graph import Graph, Graphlet
+from util.logger_util import LoggerUtil
+
+logger = LoggerUtil.get_logger("main")
 
 
 def load_data(file_name):
@@ -53,87 +58,66 @@ def check_hash_function_collision(graphlet_map):
 def write_to_file(graphlet_map, file_name, header="Graphlet Key,Frequency"):
     with open(file_name, 'w') as file:
         file.write(header + "\n")
-        for graphlet_key, graphlet_list in graphlet_map.items():
-            file.write(str(graphlet_key) + "," + str(len(graphlet_list)) + "\n")
+        for graphlet_key, graphlet_info in graphlet_map.items():
+            file.write(str(graphlet_key) + "," + str(graphlet_info[1]) + "\n")
 
 
-def solve(algorithms, file_name):
+def solve(algorithms, graphlet_size, file_name, folder_name):
     # Solve the problem
     for algorithm in algorithms:
-        print("Counting graphlets using", algorithm.__class__.__name__)
+        logger.info("Counting graphlets using %s", algorithm.__class__.__name__)
         start_time = time.time()
-        n = input("Enter the graphlet size: ")
-        graphlet_map = algorithm.count_graphlets(int(n))
-        # 4209832230508172213
-        for i in range(0, 8):
-            print("persisting graphlets batch", i)
-            algorithm.create_graphlets_persist(i)
+        graphlet_map = algorithm.count_graphlets(graphlet_size)
         # check_hash_function_collision(graphlet_map)
-        print("Time taken:", time.time() - start_time)
-        # algorithm.display_frequent_graphlet_stats(count=10, name=file_name)
-        # print("Number of graphlets:", len(graphlet_map))
+        logger.info("Time taken: %s seconds", time.time() - start_time)
+        algorithm.display_frequent_graphlet_stats(count=10, name=file_name)
+        logger.info("Number of unique graphlets: %s", len(graphlet_map))
         # sort the graphlets by frequency
-        # graphlet_map = {k: v for k, v in sorted(graphlet_map.items(), key=lambda item: len(item[1]), reverse=True)}
-        # write_to_file(graphlet_map, "./graph_output/Results_of_{}_using_{}_graphlet_size_{}.csv".format(file_name,n))
+        graphlet_map = {k: v for k, v in sorted(graphlet_map.items(), key=lambda item: item[1][1], reverse=True)}
+        path = os.path.join(folder_name, file_name + "_" + algorithm.__class__.__name__ + "_graphlets_size_" + str(graphlet_size))
+        write_to_file(graphlet_map, path + ".csv")
 
 
-def aggregate_graphlet_count_maps(graph):
-    graphlet_count_map = {}
-    graphlet_obj_map = {}
-    for i in range(0, 8):
-        with open("graphlet_count_map_{}.txt".format(i), 'r') as file:
-            for line in file:
-                graphlet_key, graphlet_count, node_str = line.split(",")
-                graphlet_count = int(graphlet_count)
-                if graphlet_key in graphlet_count_map:
-                    graphlet_count_map[graphlet_key] += graphlet_count
-                else:
-                    graphlet_count_map[graphlet_key] = graphlet_count
-                    # strip the newline character
-                    node_str = node_str[:-1]
-                    nodes = node_str.split("|")
-                    nodes = [graph.get_node(node) for node in nodes]
-                    graphlet_obj_map[graphlet_key] = Graphlet(nodes, graph)
-    # sort the graphlets by frequency
-    graphlet_count_map = {k: v for k, v in sorted(graphlet_count_map.items(), key=lambda item: item[1], reverse=True)}
-    with open("Results_of_df_regulon_using_DPGraphletCounter_graphlet_size_4.csv", 'w') as file:
-        for graphlet_key, graphlet_count in graphlet_count_map.items():
-            file.write("{},{}\n".format(graphlet_key, graphlet_count))
-    keys = list(graphlet_count_map.keys())[:10]
-    for index, key in enumerate(keys):
-        graphlet = graphlet_obj_map[key]
-        graphlet.visualize("graphlet_df_regulon_" + str(index + 1), {"activation": "green", "repression": "red"})
-    return graphlet_count_map, graphlet_obj_map
-
+def get_algorithms_to_run(algorithms_available, algorithms_to_run):
+    classes = BaseAlgorithm.__subclasses__()
+    classes = {cls.__name__: cls for cls in classes}
+    algorithms = []
+    for algorithm in algorithms_to_run:
+        if algorithm in algorithms_available:
+            algorithms.append(classes[algorithm])
+        else:
+            logger.warning("Algorithm %s is not available", algorithm)
+    return algorithms
 
 
 def main():
-    # Parse the arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file_name", help="The name of the file to load data from", required=True)
-    args = parser.parse_args()
-    file_name = args.file_name if args.file_name else "thrust_human.csv"
-    print("Loading data from file:", file_name)
-    data = load_data(file_name)
-    print("Creating graph")
-    graph = create_graph(data)
-    # new_graph = graph.mutate_graph(2000000)
-    # new_graph.init_visualization(mode_color_map={"activation": "green", "repression": "red"}, num_edges=100)
-    # new_graph.visualize("new_graph")
-    print("Number of nodes:", len(graph.get_nodes()))
-    print("Number of edges:", len(graph.get_edges()))
-    # visualize the graph
+    # read config file
+    config_file = "config.json"
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+
+    # creating the graph
+    input_file = config["input_file"]
     mode_color_map = {"activation": "green", "repression": "red"}
-    graph.init_visualization(mode_color_map=mode_color_map, num_edges=100)
-    graph.visualize()
-    # count the graphlets
-    algorithms = [DPGraphletCounter(graph, mode_color_map)]
-    end_file_name = file_name.split("/")[-1].split(".")[0]
-    solve(algorithms, end_file_name)
+    sample_size = config["sample_size"]
+    data = load_data(input_file)[:sample_size] if config["use_sampling"] else load_data(input_file)
+    graph = create_graph(data)
+    logger.info("Graph created from file: %s", input_file)
+    logger.info("Number of nodes: %s", graph.get_num_nodes())
+    logger.info("Number of edges: %s", graph.get_num_edges())
 
+    # visualize the whole graph according to the config
+    natural_file_name = Path(input_file).stem
+    if config["output"]["visualizations"]["generate"]:
+        vis_config = config["output"]["visualizations"]
+        graph.init_visualization(mode_color_map, vis_config["graph_size"])
+        path = os.path.join(vis_config["folder"], natural_file_name + "_graph")
+        graph.visualize(path)
 
-    # graphlet_count_map, graphlet_obj_map = aggregate_graphlet_count_maps(graph)
-
+    # algorithms to run
+    algorithms = [cls(graph, mode_color_map) for cls in
+                  get_algorithms_to_run(config["algorithms_available"], config["algorithms_to_run"])]
+    solve(algorithms, config["graphlet_size"], natural_file_name, config["output"]["visualizations"]["folder"])
 
 
 if __name__ == '__main__':

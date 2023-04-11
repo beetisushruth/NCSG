@@ -46,56 +46,81 @@ class Graphlet:
         self.node_data_map = {}
         self.hash_function = hashlib.sha256()
 
-    def hash_value(self):
+    # CURRENT HASH FUNCTION IN USE
+    def node_edge_degree_hash(self):
         """
-        Hash function of the graphlet
-        1) Maintain a map of node name to the value
-        2) Value is list of in and out degree for each edge of the node
-        eg: "A": {"B": [[1, 0], [0, 1]], "C": [[1, 0], [0, 1]]}
-        3) Sort the list of values for each node
-        4) Sort the list of nodes
-        5) Hash the list
-        """
-        edge_degree_map = {}
+        Calculate the node edge degree hash of the graphlet
+        For example: consider a graphlet with 3 nodes and 2 modes
+        A, B, repression
+        B, C, activation
+        A, C, repression
+        C, C, repression
 
+        A has an out degree of 2 (1 repression to B, 1 repression to C)
+        B has an in degree of 1 (1 repression from A)
+        B has an out degree of 1 (1 activation to C)
+        C has an in degree of 3 (1 repression from A, 1 activation from B, 1 repression from C)
+        C has an out degree of 1 (1 repression to C)
+
+        A's degree information is stored as a dictionary of other nodes and their degree information
+        A: {B: [[0, 0], [1, 0]], C: [[0, 0], [1, 0]]}  # 0th index is in degree, 1st index is out degree
+        Edge between A and B is a list of lists, where the first list is in degree information and the second list is
+        out degree information
+        The first element of the list is the number of activation edges, the second element is the number of repression edges
+
+        The entire edge degree information is stored as a dictionary of nodes and their edge degree information
+        {A: {B: [[0, 0], [1, 0]], C: [[0, 0], [1, 0]]}, B: {A: [[1, 0], [0, 0]], C: [[0, 0], [1, 0]]},
+        C: {A: [[1, 0], [0, 0]], B: [[0, 0], [1, 0]], C: [[1, 0], [1, 0]]}}
+
+        A node hash is calculated by sorting the edge degree information of the node and hashing the sorted list
+        Self loops are counted and added to the node hash as well
+
+        :return: the node edge degree hash
+        """
+        edge_degree_map = {}  # Initialize an empty dictionary to store edge degree information
+        # Initialize a dictionary to store self loop count for each node
+        node_loops = {node.name: 0 for node in self.nodes}
+
+        # Define a function to update edge degree information
         def set_edge_degree_information(node_name, other_name, mode_type, degree_type):
-            if node_name not in edge_degree_map:
-                edge_degree_map[node_name] = {}
-            if other_name not in edge_degree_map[node_name]:
-                edge_degree_map[node_name][other_name] = [[0 for _ in range(len(self.mode_map))],
-                                                          [0 for _ in range(len(self.mode_map))]]
+            edge_degree_map.setdefault(node_name, {}).setdefault(other_name, [[0] * len(self.mode_map),
+                                                                              [0] * len(self.mode_map)])
             edge_degree_map[node_name][other_name][degree_type][self.mode_map[mode_type]] += 1
 
-        node_loops = {node.name: 0 for node in self.nodes}
+        # Loop through all nodes and their neighbors to update edge degree information
         for node in self.nodes:
             neighbors = node.edges
             modes = neighbors.keys()
             for other in self.nodes:
-                # in degree and out degree for each mode
                 for mode in modes:
                     if other.name in neighbors[mode]:
                         if node.name == other.name:
                             node_loops[node.name] += 1
-                        # update out degree
-                        set_edge_degree_information(node.name, other.name, mode, 1)
-                        # update in degree
-                        # get node_edge_degree_information[other.name] and update the in degree
-                        set_edge_degree_information(other.name, node.name, mode, 0)
-        node_hashes = []
+                        set_edge_degree_information(node.name, other.name, mode, 1)  # Update out degree
+                        set_edge_degree_information(other.name, node.name, mode, 0)  # Update in degree
+
+        node_hashes = []  # Initialize a list to store node hashes
+        # print(edge_degree_map)
+        # Loop through edge degree information to calculate node hashes
         for node_name, node_edge_degree_information in edge_degree_map.items():
-            values = list(node_edge_degree_information.values())
-            # change values to tuples
-            for j in range(len(values)):
-                value = values[j]
-                for i in range(len(value)):
-                    value[i] = tuple(value[i])
-            values = [tuple(value) for value in values]
-            sorted_values = sorted(values, key=custom_sort_key)
-            sorted_values.append(node_loops[node_name])
-            h = hash(tuple(sorted_values))
+            values = [self.convert_to_tuple(value) for value in node_edge_degree_information.values()]
+            sorted_values = sorted(values, key=lambda x: custom_sort_key(x))  # Sort the list of values for each node
+            sorted_values.append(node_loops[node_name])  # Add loop count to the sorted values
+            h = hash(tuple(sorted_values))  # Hash the sorted values
             node_hashes.append(h)
-        sorted_node_hashes = tuple(sorted(node_hashes))
-        return hash(sorted_node_hashes)
+
+        sorted_node_hashes = tuple(sorted(node_hashes))  # Sort the node hashes
+        return hash(sorted_node_hashes)  # Return the hash value of the sorted node hashes
+
+    def convert_to_tuple(self, ds):
+        """
+        util function to convert the nested list to a nested tuple
+        """
+        if len(ds) == 0:
+            return tuple()
+        if isinstance(ds[0], list):
+            return tuple(self.convert_to_tuple(l) for l in ds)
+        return tuple(ds)
 
     def __hash__(self):
         """
@@ -107,11 +132,15 @@ class Graphlet:
         This will ensure that the graphlet is isomorphic and no loss of information
         :return: the hash of the graphlet
         """
-        # return self.old_hash()
-        # return self.new_hash()
-        return self.old_hash()
+        return self.node_edge_degree_hash()
 
-    def old_hash(self):
+    # OLD HASH FUNCTION - NOT IN USE
+    # SIMPLER THAN NODE_EDGE_DEGREE_HASH BUT CAUSES LOSS OF INFORMATION AND HENCE COLLISIONS
+    def node_combined_degree_hash(self):
+        """
+        Calculate the node combined degree hash of the graphlet
+        :return: the node combined degree hash
+        """
         self.node_data_map = {}
         for node in self.nodes:
             # maintain in and out degree for each node corresponding to each mode
@@ -119,10 +148,6 @@ class Graphlet:
             self.node_data_map[node.name] = [[0 for _ in range(len(self.mode_map))],
                                              [0 for _ in range(len(self.mode_map))],
                                              [0 for _ in range(len(self.mode_map))]]
-
-        # result = {1: [g1, g2, g3], 2: [g4, g5, g6], 3: [g6, g7, g8], 4:[g9, g10, g11]}
-        # [g1 = l1, l2, l3, l3', l4]
-        #
         # runs with O(n^2*modes) time complexity
         # where n is the number of nodes in the graphlet
         for from_node in self.nodes:
@@ -144,8 +169,6 @@ class Graphlet:
         values = list(self.node_data_map.values())
         # custom sort using the custom sort function
         values.sort(key=custom_sort_key)
-        # self.hash_function.update(str(values).encode())
-        # return int(self.hash_function.hexdigest(), 16)
         return hash(tuple(values))
 
     def visualize(self, graphlet_name, edge_color_map, to_png=False):
@@ -214,6 +237,7 @@ class Graphlet:
         """
         Check if the graphlet is isomorphic to another graphlet
         :param other: the other graphlet
+        :param debug: if True, print debug information
         :return: True if the graphlets are isomorphic, False otherwise
         """
         # permutation of the nodes in the graphlet
@@ -231,6 +255,15 @@ class Graphlet:
         return False
 
     def _check_node_info(self, node_info, other_nodes, other_info, node_map, other_map):
+        """
+        Check if the node info is the same as the other graphlet
+        :param node_info: the node info of the current permutation
+        :param other_nodes: the nodes of the other graphlet
+        :param other_info: the node info of the other graphlet
+        :param node_map: the map of node name to index in the current permutation
+        :param other_map: the map of node name to index in the other graphlet
+        :return: True if the node info is the same as the other graphlet, False otherwise
+        """
         for node_name, edges in node_info.items():
             node_index = node_map[node_name]
             other_node = other_nodes[node_index]
@@ -252,6 +285,12 @@ class Graphlet:
         return True
 
     def _get_node_info(self, other_nodes, other_nodes_map):
+        """
+        Get the node info of the other graphlet
+        :param other_nodes: the nodes of the other graphlet
+        :param other_nodes_map: the map of node name to index in the other graphlet
+        :return: the node info of the other graphlet
+        """
         other_info = {}
         for other_node in other_nodes:
             # construct other edges from current other node
@@ -454,7 +493,7 @@ class Graph:
         for edge in edges[:num_edges]:
             self.__visual_graph.add_edge(edge[0], edge[1], color=mode_color_map[edge[2]])
 
-    def visualize(self, name="graph"):
+    def visualize(self, path="graph"):
         """
         Visualize the graph using pyvis
         :return: None
@@ -463,7 +502,7 @@ class Graph:
                       directed=True)
         net.from_nx(self.__visual_graph)
         # net.show_buttons(filter_=["physics"])
-        net.show("./graph_output/" + name + ".html")
+        net.show(path + ".html")
 
     def _check_edge(self, node1, node2, mode):
         """
@@ -528,4 +567,22 @@ class Graph:
 
     @property
     def mode_map(self):
+        """
+        Get the mode map
+        :return: mode map
+        """
         return self._mode_map
+
+    def get_num_edges(self):
+        """
+        Get the number of edges in the graph
+        :return: number of edges
+        """
+        return len(self.get_edges())
+
+    def get_num_nodes(self):
+        """
+        Get the number of nodes in the graph
+        :return: number of nodes
+        """
+        return len(self.get_nodes())

@@ -6,15 +6,20 @@ from util.heap import MyHeap
 class BruteForceGraphletCounter(BaseAlgorithm):
 
     def __init__(self, graph, edge_color_map):
+        """
+        Initialize the graphlet counter
+        :param graph: the graph
+        :param edge_color_map: the map of key: edge name, value: edge color
+        """
         super().__init__(graph, edge_color_map)
         self._graphlet_count_map = {}
         self._processed_nodes = set()
 
     def count_graphlets(self, graphlet_target_size=3):
         """
-            Count the graphlets in the graph
-            :return:  the map of graphlet hash to graphlet
-            """
+        Count the graphlets in the graph
+        :return:  the map of graphlet hash to graphlet
+        """
         count = 0
         node_names = list(self._graph.get_nodes())
         node_combinations = self._get_node_combinations(node_names, graphlet_target_size)
@@ -28,11 +33,11 @@ class BruteForceGraphletCounter(BaseAlgorithm):
 
     def _get_node_combinations(self, node_names, size):
         """
-            Get all possible combinations of nodes
-            :param node_names: list of node names
-            :param size: size of the combination
-            :return: list of combinations
-            """
+        Get all possible combinations of nodes
+        :param node_names: list of node names
+        :param size: size of the combination
+        :return: list of combinations
+        """
         if size == 1:
             return [[node_name] for node_name in node_names]
         else:
@@ -44,6 +49,12 @@ class BruteForceGraphletCounter(BaseAlgorithm):
             return combinations
 
     def _check_valid_combination(self, node_combination, size):
+        """
+        Check if the combination is valid
+        :param node_combination: list of node names
+        :param size: size of the combination
+        :return: True if valid, False otherwise
+        """
         nodes_set = set(node_combination)
         node_index_map = {node_name: i for i, node_name in enumerate(node_combination)}
         edge_count = 0
@@ -57,6 +68,11 @@ class BruteForceGraphletCounter(BaseAlgorithm):
         return False
 
     def _create_and_save_graphlet(self, node_group):
+        """
+        Create and save the graphlet
+        :param node_group: list of node names
+        :return: None
+        """
         node_set = []
         for node_name in node_group:
             node = self.graph.get_node(node_name)
@@ -67,6 +83,11 @@ class BruteForceGraphletCounter(BaseAlgorithm):
         self._graphlet_count_map[hash_key].append(g)
 
     def display_frequent_graphlet_stats(self, count=5):
+        """
+        Display the most frequent graphlets
+        :param count: number of graphlets to display
+        :return: None
+        """
         heap = MyHeap(key=lambda x: len(x[1]))
         for graphlet_hash, graphlets in self._graphlet_count_map.items():
             heap.push((graphlet_hash, graphlets))

@@ -1,10 +1,9 @@
-import heapq
-
 from algorithm.base import BaseAlgorithm
 from graph import Graphlet
 from util.heap import MyHeap
 
 
+# DEPRECATED - USE DPGraphletCounter INSTEAD
 class BFSGraphletCounter(BaseAlgorithm):
 
     def __init__(self, graph, edge_color_map):
@@ -112,6 +111,11 @@ class BFSGraphletCounter(BaseAlgorithm):
         return self._graphlet_count_map
 
     def display_frequent_graphlet_stats(self, count=5):
+        """
+        Display the most frequent graphlets
+        :param count: the number of graphlets to display
+        :return: None
+        """
         heap = MyHeap(key=lambda x: len(x[1]))
         for graphlet_hash, graphlets in self._graphlet_count_map.items():
             heap.push((graphlet_hash, graphlets))
@@ -125,7 +129,3 @@ class BFSGraphletCounter(BaseAlgorithm):
         for graphlet, count in top_graphlets:
             print("Graphlet: {} Count: {}".format(graphlet, count))
         self.generate_graphlet_visualization([graphlet for graphlet, freq in top_graphlets])
-
-
-
-
