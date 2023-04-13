@@ -62,32 +62,55 @@ def write_to_file(graphlet_map, file_name, header="Graphlet Key,Frequency"):
             file.write(str(graphlet_key) + "," + str(graphlet_info[1]) + "\n")
 
 
-def solve(algorithms, graphlet_size, file_name, folder_name):
+def solve(algorithm, graphlet_size, execution_name):
     # Solve the problem
-    for algorithm in algorithms:
-        logger.info("Counting graphlets using %s", algorithm.__class__.__name__)
-        start_time = time.time()
-        graphlet_map = algorithm.count_graphlets(graphlet_size)
-        # check_hash_function_collision(graphlet_map)
-        logger.info("Time taken: %s seconds", time.time() - start_time)
-        algorithm.display_frequent_graphlet_stats(count=10, name=file_name)
-        logger.info("Number of unique graphlets: %s", len(graphlet_map))
-        # sort the graphlets by frequency
-        graphlet_map = {k: v for k, v in sorted(graphlet_map.items(), key=lambda item: item[1][1], reverse=True)}
-        path = os.path.join(folder_name, file_name + "_" + algorithm.__class__.__name__ + "_graphlets_size_" + str(graphlet_size))
-        write_to_file(graphlet_map, path + ".csv")
+    logger.info("Counting graphlets using %s", algorithm.__class__.__name__)
+    start_time = time.time()
+    graphlet_map = algorithm.count_graphlets(graphlet_size)
+    # check_hash_function_collision(graphlet_map)
+    logger.info("Time taken: %s seconds", time.time() - start_time)
+    algorithm.display_frequent_graphlet_stats(count=10, name=execution_name)
+    logger.info("Number of unique graphlets: %s", len(graphlet_map))
+    # sort the graphlets by frequency
+    graphlet_map = {k: v for k, v in sorted(graphlet_map.items(), key=lambda item: item[1][1], reverse=True)}
+    return graphlet_map
 
 
-def get_algorithms_to_run(algorithms_available, algorithms_to_run):
-    classes = BaseAlgorithm.__subclasses__()
-    classes = {cls.__name__: cls for cls in classes}
-    algorithms = []
-    for algorithm in algorithms_to_run:
-        if algorithm in algorithms_available:
-            algorithms.append(classes[algorithm])
-        else:
-            logger.warning("Algorithm %s is not available", algorithm)
-    return algorithms
+def get_algorithm_class(algorithm_to_use):
+    """
+    Get the algorithm object from the algorithm name
+    :param algorithm_to_use: the name of the algorithm
+    :return: the algorithm class
+    """
+    classes = {cls.__name__: cls for cls in BaseAlgorithm.__subclasses__()}
+    if algorithm_to_use in classes:
+        return classes[algorithm_to_use]
+    return None
+
+
+def run_graphlet_counting(graph, graphlet_size, sample_size, num_of_samples, markov_steps,
+                          num_of_markov_graphs, algorithm_class, mode_color_map):
+    # sample the graph
+    aggregate_graphlet_map = {}
+    for i in range(num_of_markov_graphs):
+        logger.info("Generating markov graph %s with %s steps", i + 1, markov_steps)
+        graph = graph.mutate_graph(markov_steps)
+        for j in range(num_of_samples):
+            graph_sample = graph.sample(sample_size)
+            logger.info("Sampling graph %s of size %s", j + 1, sample_size)
+            algorithm = algorithm_class(graph_sample, mode_color_map)
+            graphlet_map = solve(algorithm, graphlet_size, "markov_graph_" + str(i + 1) + "_sample_" + str(j + 1))
+            for graphlet_key, graphlet_info in graphlet_map.items():
+                if graphlet_key in aggregate_graphlet_map:
+                    value = aggregate_graphlet_map[graphlet_key]
+                    aggregate_graphlet_map[graphlet_key] = (value[0], value[1] + graphlet_info[1])
+                else:
+                    aggregate_graphlet_map[graphlet_key] = graphlet_info
+    for graphlet_key, graphlet_info in aggregate_graphlet_map.items():
+        aggregate_graphlet_map[graphlet_key] = (graphlet_info[0], graphlet_info[1] / (num_of_markov_graphs * num_of_samples))
+    # sort the graphlets by frequency descending
+    aggregate_graphlet_map = {k: v for k, v in sorted(aggregate_graphlet_map.items(), key=lambda item: item[1][1], reverse=True)}
+    return aggregate_graphlet_map
 
 
 def main():
@@ -96,28 +119,72 @@ def main():
     with open(config_file, 'r') as file:
         config = json.load(file)
 
-    # creating the graph
+    # configurations
     input_file = config["input_file"]
-    mode_color_map = {"activation": "green", "repression": "red"}
+    algorithm_to_use = config["algorithm_to_use"]
+    graphlet_size = config["graphlet_size"]
     sample_size = config["sample_size"]
-    data = load_data(input_file)[:sample_size] if config["use_sampling"] else load_data(input_file)
+    use_sampling = config["use_sampling"]
+    num_of_samples = config["num_of_samples"]
+    markov_steps = config["markov_steps"]
+    use_markov_graph_generation = config["use_markov_graph_generation"]
+    num_of_markov_graphs = config["num_of_markov_graphs"]
+    output_config = config["output"]
+    generate_csv_output = output_config["csv_output"]["generate"]
+    csv_output_folder = output_config["csv_output"]["folder"]
+    generate_graph_visualizations = output_config["visualizations"]["generate"]
+    visualization_folder = output_config["visualizations"]["folder"]
+    mode_color_map = output_config["visualizations"]["mode_colors"]
+
+    # load data
+    data = load_data(input_file)
     graph = create_graph(data)
     logger.info("Graph created from file: %s", input_file)
     logger.info("Number of nodes: %s", graph.get_num_nodes())
     logger.info("Number of edges: %s", graph.get_num_edges())
 
+    # setup
+    num_of_samples = num_of_samples if use_sampling else 1
+    sample_size = sample_size if use_sampling else graph.get_num_nodes()
+    num_of_markov_graphs = num_of_markov_graphs if use_markov_graph_generation else 1
+    markov_steps = markov_steps if use_markov_graph_generation else 0
+    logger.info("Using sampling and markov generation leads to an average approximation of the graphlet counts of all "
+                "iterations")
     # visualize the whole graph according to the config
-    natural_file_name = Path(input_file).stem
-    if config["output"]["visualizations"]["generate"]:
-        vis_config = config["output"]["visualizations"]
-        graph.init_visualization(mode_color_map, vis_config["graph_size"])
-        path = os.path.join(vis_config["folder"], natural_file_name + "_graph")
-        graph.visualize(path)
+    readable_file_name = Path(input_file).stem
 
     # algorithms to run
-    algorithms = [cls(graph, mode_color_map) for cls in
-                  get_algorithms_to_run(config["algorithms_available"], config["algorithms_to_run"])]
-    solve(algorithms, config["graphlet_size"], natural_file_name, config["output"]["visualizations"]["folder"])
+    algorithm = get_algorithm_class(algorithm_to_use)
+    if not algorithm:
+        logger.info("No valid algorithm provided")
+        return
+    aggregate_graphlet_map = run_graphlet_counting(graph, graphlet_size, sample_size, num_of_samples, markov_steps,
+                                                   num_of_markov_graphs, algorithm, mode_color_map)
+    if generate_csv_output:
+        logger.info("Writing graphlet counts to csv file")
+        name = "Results_graphlet_size_{}_{}_{}_sampling_{}_{}_markov_{}_{}".format(readable_file_name, graphlet_size,
+                                                                                   algorithm.__name__,
+                                                                                   use_sampling,
+                                                                                   sample_size,
+                                                                                   use_markov_graph_generation,
+                                                                                   markov_steps,
+                                                                                   num_of_markov_graphs)
+        path = os.path.join(csv_output_folder, name + ".csv")
+        write_to_file(aggregate_graphlet_map, path)
+    if generate_graph_visualizations:
+        logger.info("Generating graph visualizations")
+        results = list(aggregate_graphlet_map.items())[:10]
+        for index, (graphlet_key, graphlet_info) in enumerate(results):
+            graphlet = graphlet_info[0]
+            name = "{}_graphlet_size_{}_{}_{}_sampling_{}_{}_markov_{}_{}".format(index + 1, graphlet_size,
+                                                                                  readable_file_name,
+                                                                                  algorithm.__name__,
+                                                                                  use_sampling,
+                                                                                  sample_size,
+                                                                                  use_markov_graph_generation,
+                                                                                  markov_steps)
+            path = os.path.join(visualization_folder, name + ".html")
+            graphlet.visualize(path, mode_color_map)
 
 
 if __name__ == '__main__':

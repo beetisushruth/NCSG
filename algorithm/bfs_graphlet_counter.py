@@ -128,4 +128,3 @@ class BFSGraphletCounter(BaseAlgorithm):
         top_graphlets.reverse()
         for graphlet, count in top_graphlets:
             print("Graphlet: {} Count: {}".format(graphlet, count))
-        self.generate_graphlet_visualization([graphlet for graphlet, freq in top_graphlets])

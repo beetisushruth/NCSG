@@ -171,10 +171,9 @@ class Graphlet:
         values.sort(key=custom_sort_key)
         return hash(tuple(values))
 
-    def visualize(self, graphlet_name, edge_color_map, to_png=False):
+    def visualize(self, file_path, edge_color_map, to_png=False):
         """
         Visualize the graphlet
-        :param graphlet_name: the name of the graphlet
         :param edge_color_map: the map of edge mode to color
         :param to_png: if True, save the graphlet as a png file
         :return: None
@@ -187,7 +186,6 @@ class Graphlet:
                     if neighbor_name in node_names:
                         # add edge without labels
                         g.add_edge(node.name, neighbor_name, color=edge_color_map[mode])
-        file_path = "./graph_output/" + "size_" + str(len(self.nodes)) + "_" + graphlet_name
         if to_png:
             self._visualize_as_png(g, file_path)
         else:
@@ -532,8 +530,6 @@ class Graph:
         :return: new graph
         """
         edges = self.get_edges()
-
-        total_edges = len(edges)
         # mutate graph using markov chain
         while steps > 0:
             # Choose two random edges
@@ -542,28 +538,34 @@ class Graph:
             # Check if edges share any nodes
             if len(set(edge1[:2] + edge2[:2])) != 4:
                 continue
-            # Flip nodes of the edges randomly
-            nodes1 = [edge1[0], edge1[1]]
-            choice1 = random.choice([True, False])
-            if choice1:
-                nodes1.reverse()
-            nodes2 = [edge2[0], edge2[1]]
-            choice2 = random.choice([True, False])
-            if choice2:
-                nodes2.reverse()
-            new_edge1 = (nodes2[0], nodes1[1], edge1[2])
-            if choice1:
-                new_edge1 = (nodes1[1], nodes2[0], edge1[2])
-            new_edge2 = (nodes1[0], nodes2[1], edge2[2])
-            if choice2:
-                new_edge2 = (nodes2[1], nodes1[0], edge2[2])
-            # Check if new edges are already present in the graph
-            if self._check_edge(*new_edge1) or self._check_edge(*new_edge2):
+            # check if both edges are of same mode
+            if edge1[2] != edge2[2]:
                 continue
-            edges[index1] = new_edge1
-            edges[index2] = new_edge2
+            u, v, mode = edge1
+            x, y, mode = edge2
+            # after swapping new edge will be (u, y, mode) and (x, v, mode)
+            # so check if new edges are already present in the graph
+            if self._check_edge(u, y, mode) or self._check_edge(x, v, mode):
+                continue
+            edges[index1] = (u, y, mode)
+            edges[index2] = (x, v, mode)
             steps -= 1
         return self.get_new_graph(self._mode_map, edges)
+
+    def sample(self, num_nodes):
+        """
+        Sample the graph
+        :param num_nodes: number of nodes to sample
+        :return: new graph
+        """
+        nodes = self.get_nodes()
+        sampled_nodes = set(random.sample(nodes, num_nodes))
+        edges = self.get_edges()
+        sampled_edges = []
+        for edge in edges:
+            if edge[0] in sampled_nodes and edge[1] in sampled_nodes:
+                sampled_edges.append(edge)
+        return self.get_new_graph(self._mode_map, sampled_edges)
 
     @property
     def mode_map(self):

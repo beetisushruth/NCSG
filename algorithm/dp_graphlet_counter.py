@@ -91,4 +91,3 @@ class DPGraphletCounter(BaseAlgorithm):
         top_graphlets.reverse()
         for graphlet, count in top_graphlets:
             logger.info("Graphlet: %s, Count: %s, with algo: %s", graphlet, count, 'dp_algo')
-        self.generate_graphlet_visualization(name, [graphlet for graphlet, freq in top_graphlets])
